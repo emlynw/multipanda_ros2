@@ -29,6 +29,7 @@ add_library(
         SHARED
         src/gravity_compensation_example_controller.cpp
         src/joint_impedance_example_controller.cpp
+        src/cartesian_impedance_controller.cpp
         src/cartesian_impedance_example_controller.cpp
         src/move_to_start_example_controller.cpp
         src/joint_position_example_controller.cpp

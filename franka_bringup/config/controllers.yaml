@@ -17,6 +17,9 @@ controller_manager:
     joint_position_example_controller:
       type: franka_example_controllers/JointPositionExampleController
 
+    joint_position_controller:
+      type: franka_example_controllers/JointPositionController
+
     joint_velocity_example_controller:
       type: franka_example_controllers/JointVelocityExampleController
     

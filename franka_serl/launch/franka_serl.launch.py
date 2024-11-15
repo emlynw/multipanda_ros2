@@ -16,7 +16,6 @@ def generate_launch_description():
             'load_gripper': 'True'  
         }.items()                       
       )
-    print(os.path.join(get_package_share_directory('franka_bringup'), 'launch', 'franka.launch.py'))
 
     controller_manager = Node(
         package='controller_manager',
@@ -32,16 +31,8 @@ def generate_launch_description():
             output='screen',
         )
 
-    # camera = Node(
-    #         package='realsense2_camera',
-    #         executable='realsense2_camera_node',
-    #         name='realsense2_camera_node',
-    #         output='screen',
-    #     )
-
     return LaunchDescription([
         bringup,
         controller_manager,
         gripper,
-        # camera
    ])

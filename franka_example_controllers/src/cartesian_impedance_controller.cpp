@@ -19,6 +19,8 @@
 #include <exception>
 #include <string>
 #include <franka/model.h>
+#include <franka_msgs/msg/franka_model.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 
 inline void pseudoInverse(const Eigen::MatrixXd& M_, Eigen::MatrixXd& M_pinv_, bool damped = true) {
     double lambda_ = damped ? 0.2 : 0.0;
@@ -30,10 +32,6 @@ inline void pseudoInverse(const Eigen::MatrixXd& M_, Eigen::MatrixXd& M_pinv_, b
 
     for (int i = 0; i < sing_vals_.size(); i++)
         S_(i, i) = (sing_vals_(i)) / (sing_vals_(i) * sing_vals_(i) + lambda_ * lambda_);
-
-    // std::cout << "V: (" << svd.matrixV().rows() << ", " << svd.matrixV().cols() << ")" << std::endl;
-    // std::cout << "S: (" << S_.rows() << ", " << S_.cols() << ")" << std::endl;
-    // std::cout << "U: (" << svd.matrixU().rows() << ", " << svd.matrixU().cols() << ")" << std::endl;
 
     M_pinv_ = Eigen::MatrixXd(svd.matrixV() * S_.transpose() * svd.matrixU().transpose());
 }
@@ -81,6 +79,10 @@ CallbackReturn CartesianImpedanceController::on_configure(
                                                    arm_id_));
   pose_subscriber_ = this->get_node()->create_subscription<geometry_msgs::msg::Pose>(
     "/franka/goal_pose", 1, std::bind(&CartesianImpedanceController::equilibriumPoseCallback, this, std::placeholders::_1));
+
+  // Add publishers for Jacobian and Cartesian speed
+  jacobian_publisher_ = this->get_node()->create_publisher<franka_msgs::msg::FrankaModel>("/franka/jacobian", 1);
+  cartesian_speed_publisher_ = this->get_node()->create_publisher<geometry_msgs::msg::Twist>("/franka/cartesian_speed", 1);
         
   return CallbackReturn::SUCCESS;
 }
@@ -121,6 +123,29 @@ controller_interface::return_type CartesianImpedanceController::update(
   Eigen::Map<const Vector7d> q(franka_robot_model_->getRobotState()->q.data());
   Eigen::Map<const Vector7d> dq(franka_robot_model_->getRobotState()->dq.data());
   Eigen::Map<const Vector7d> tau_J_d(franka_robot_model_->getRobotState()->tau_J_d.data());
+
+ // Publish the full Jacobian as a Float64MultiArray message
+  franka_msgs::msg::FrankaModel jacobian_msg;
+  jacobian_msg.header.stamp = this->get_node()->now();
+  for (int i = 0; i < 6; ++i) {
+    for (int j = 0; j < 7; ++j) {
+      jacobian_msg.ee_zero_jacobian[i * 7 + j] = jacobian(i, j);
+    }
+  }
+
+  jacobian_publisher_->publish(jacobian_msg);
+
+  // Calculate and publish Cartesian speed
+  Eigen::Matrix<double, 6, 1> cartesian_speed = jacobian * dq;
+  geometry_msgs::msg::Twist cartesian_speed_msg;
+  cartesian_speed_msg.linear.x = cartesian_speed(0);
+  cartesian_speed_msg.linear.y = cartesian_speed(1);
+  cartesian_speed_msg.linear.z = cartesian_speed(2);
+  cartesian_speed_msg.angular.x = cartesian_speed(3);
+  cartesian_speed_msg.angular.y = cartesian_speed(4);
+  cartesian_speed_msg.angular.z = cartesian_speed(5);
+  cartesian_speed_publisher_->publish(cartesian_speed_msg);
+
   // translation error
   error_.head(3) << position - position_d_;
   // translation error clipping
@@ -149,9 +174,7 @@ controller_interface::return_type CartesianImpedanceController::update(
   tau_d.setZero();
 
   Eigen::MatrixXd jacobian_transpose_pinv;
-  //  std::cout << "J shape: (" << jacobian.rows() << ", " << jacobian.cols() << ")" << std::endl;
-  //  std::cout << "J: (" << jacobian << std::endl;
-    pseudoInverse(jacobian.transpose(), jacobian_transpose_pinv);
+  pseudoInverse(jacobian.transpose(), jacobian_transpose_pinv);
   
   tau_task << jacobian.transpose() * 
                   (-cartesian_stiffness_* error_ - cartesian_damping_ *(jacobian * dq) - Ki_ * error_i);

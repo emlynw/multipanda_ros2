@@ -22,6 +22,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <Eigen/Dense>
 #include <geometry_msgs/msg/pose.hpp>
+#include <franka_msgs/msg/franka_model.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
@@ -59,6 +61,8 @@ class CartesianImpedanceController : public controller_interface::ControllerInte
       const Eigen::Matrix<double, 7, 1>& tau_J_d);  // NOLINT (readability-identifier-naming)
 
   rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr pose_subscriber_;
+  rclcpp::Publisher<franka_msgs::msg::FrankaModel>::SharedPtr jacobian_publisher_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cartesian_speed_publisher_;
   std::string arm_id_;
   const int num_joints = 7;
   std::unique_ptr<franka_semantic_components::FrankaRobotModel> franka_robot_model_;

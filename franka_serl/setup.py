@@ -23,6 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'franka_server = franka_serl.franka_server:main',
         ],
     },
 )

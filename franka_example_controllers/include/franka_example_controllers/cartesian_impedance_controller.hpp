@@ -90,6 +90,8 @@ class CartesianImpedanceController : public controller_interface::ControllerInte
   std::array<double, 3> translational_clip_max_{0.01, 0.01, 0.01};
   std::array<double, 3> rotational_clip_min_{-0.01, -0.01, -0.01};
   std::array<double, 3> rotational_clip_max_{0.01, 0.01, 0.01};
+  Vector7d joint_lower_limits_; 
+  Vector7d joint_upper_limits_;
 
   
 

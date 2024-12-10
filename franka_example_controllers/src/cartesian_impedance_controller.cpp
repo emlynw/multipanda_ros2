@@ -83,6 +83,8 @@ CallbackReturn CartesianImpedanceController::on_configure(
   // Add publishers for Jacobian and Cartesian speed
   jacobian_publisher_ = this->get_node()->create_publisher<franka_msgs::msg::FrankaModel>("/franka/jacobian", 1);
   cartesian_speed_publisher_ = this->get_node()->create_publisher<geometry_msgs::msg::Twist>("/franka/cartesian_speed", 1);
+  joint_lower_limits_ << -2.8, -1.7, -2.8, -3.0, -2.8, -0.010, -2.8;
+  joint_upper_limits_ << 2.8, 1.7, 2.8, -0.08, 2.8, 3.74, 2.8;
         
   return CallbackReturn::SUCCESS;
 }
@@ -94,6 +96,7 @@ CallbackReturn CartesianImpedanceController::on_activate(
   desired = Matrix4d(franka_robot_model_->getPoseMatrix(franka::Frame::kEndEffector).data());
   position_d_ = Vector3d(desired.block<3,1>(0,3));
   orientation_d_ = Quaterniond(desired.block<3,3>(0,0));
+  orientation_d_.normalize();  // Normalize the desired orientation
   q_d_nullspace_ = Vector7d(franka_robot_model_->getRobotState()->q.data());
 
   cartesian_stiffness_.setIdentity();
@@ -153,6 +156,8 @@ controller_interface::return_type CartesianImpedanceController::update(
     error_(i) = std::min(std::max(error_(i), translational_clip_min_[i]), translational_clip_max_[i]);
   }
   // orientation error
+  orientation.normalize();
+  orientation_d_.normalize();
   if (orientation_d_.coeffs().dot(orientation.coeffs()) < 0.0) {
     orientation.coeffs() << -orientation.coeffs();
   }
@@ -167,6 +172,18 @@ controller_interface::return_type CartesianImpedanceController::update(
 
   error_i.head(3) << (error_i.head(3) + error_.head(3)).cwiseMax(-0.1).cwiseMin(0.1);
   error_i.tail(3) << (error_i.tail(3) + error_.tail(3)).cwiseMax(-0.3).cwiseMin(0.3);
+
+  // Check if any joint is close to its limits
+  Eigen::VectorXd proximity(7);
+  for (int i = 0; i < 7; ++i) {
+    if (q[i] <= joint_lower_limits_[i]) {
+      proximity[i] = -1.0;  // Joint is at the lower limit
+    } else if (q[i] >= joint_upper_limits_[i]) {
+      proximity[i] = 1.0;   // Joint is at the upper limit
+    } else {
+      proximity[i] = 0.0;   // Joint is within limits
+    }
+  }
 
   Vector7d tau_task, tau_nullspace, tau_d;
   tau_task.setZero();
@@ -193,6 +210,14 @@ controller_interface::return_type CartesianImpedanceController::update(
                           (2.0 * sqrt(nullspace_stiffness_)) * dqe);
 
   tau_d <<  tau_task + coriolis + tau_nullspace;
+
+  // Adjust torques near joint limits
+  for (int i = 0; i < 7; ++i) {
+    if (proximity[i] != 0.0) {
+      tau_d[i] = 0.0;  // Stop applying torque in that direction
+    }
+  }
+
   tau_d << saturateTorqueRate(tau_d, tau_J_d);
   
   for (int i = 0; i < num_joints; ++i) {
@@ -221,6 +246,7 @@ void CartesianImpedanceController::equilibriumPoseCallback(const geometry_msgs::
   if (last_orientation_d_.coeffs().dot(orientation_d_.coeffs()) < 0.0) {
     orientation_d_.coeffs() << -orientation_d_.coeffs();
   }
+  orientation_d_.normalize();
 }
 
 CallbackReturn CartesianImpedanceController::on_deactivate(

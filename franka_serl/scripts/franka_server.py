@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 This file starts a control server running on the real time PC connected to the franka robot.
 In a screen run `python franka_server.py`
@@ -21,6 +23,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from franka_msgs.msg import FrankaState
 from franka_msgs.srv import ErrorRecovery
 import geometry_msgs.msg as geom_msg
+import threading
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -69,20 +72,38 @@ class FrankaServer(Node):
             qos_profile=custom_qos_profile,
             callback_group=self.callback_group
         )
-        ## Todo: Create jacobian publisher in cartesian_impedance_controller
-        # self.jacobian_sub = self.node.create_subscription(
-        #     ee_zero_jacobian,
-        #     '/cartesian_impedance_controller/franka_jacobian',
-        #     self._set_jacobian,
-        #     qos_profile=custom_qos_profile,
-        #     callback_group=self.callback_group
-        # )
+
+        self.vel_sub = self.node.create_subscription(
+            Twist,
+            '/franka/cartesian_speed',
+            self.vel_callback,
+            qos_profile=custom_qos_profile,
+            callback_group=self.callback_group
+        )
 
         self.eepub = self.create_publisher(Pose, '/franka/goal_pose', 10)
         self.gripper_pub = self.create_publisher(Float32, '/franka/gripper', 10)
 
         # Error Recovery Service Client
         self.error_recovery_client = self.create_client(ErrorRecovery, '/panda_error_recovery_service_server/error_recovery')
+
+    def start_bringup(self):
+        self.bringup = subprocess.Popen(
+            [
+                "ros2", "launch",
+                self.ros_pkg_name,
+                "bringup.launch.py",
+                "robot_ip:=" + self.robot_ip,
+                f"load_gripper:={'true' if self.gripper_type == 'Franka' else 'false'}",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        time.sleep(5)
+
+    def stop_bringup(self):
+        self.bringup.terminate()
+        time.sleep(1)
 
 
     def start_impedance(self):
@@ -92,10 +113,9 @@ class FrankaServer(Node):
                 "ros2", "launch",
                 self.ros_pkg_name,
                 "impedance.launch.py",
-                "robot_ip:=" + self.robot_ip,
-                f"load_gripper:={'true' if self.gripper_type == 'Franka' else 'false'}",
             ],
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         time.sleep(5)
 
@@ -105,15 +125,32 @@ class FrankaServer(Node):
         time.sleep(1)
 
     def clear(self):
-        """Clears any errors"""
+        """Clears any errors by polling the future until it's done"""
         if self.error_recovery_client.wait_for_service(timeout_sec=5.0):
+            # Create a request for ErrorRecovery
             request = ErrorRecovery.Request()
             future = self.error_recovery_client.call_async(request)
-            rclpy.spin_until_future_complete(self, future)
-            if future.result() is not None:
-                self.get_logger().info("Successfully cleared errors")
-            else:
-                self.get_logger().error("Failed to clear errors")
+
+            # Wait for the service call to complete
+            while not future.done():
+                rclpy.spin_once(self, timeout_sec=0.1)
+
+            # Check the response from the future
+            try:
+                response = future.result()
+                print(response)
+                if response is not None:
+                    # Log the success status of the error recovery
+                    if response.success:
+                        self.get_logger().info("Successfully cleared errors")
+                    else:
+                        # If the recovery failed, log the error message
+                        self.get_logger().error(f"Failed to clear errors: {response.error}")
+                else:
+                    self.get_logger().error("Failed to clear errors: No response received")
+            except Exception as e:
+                # Catch any exceptions that occurred while getting the response
+                self.get_logger().error(f"Service call failed with exception: {str(e)}")
         else:
             self.get_logger().error('Error recovery service not available')
 
@@ -128,6 +165,8 @@ class FrankaServer(Node):
         time.sleep(3)
         self.clear()
 
+        self.reset_joint_target = [0, -0.785, 0, -2.356, 0, 1.571, 0.785]
+
         # Launch joint controller reset
         # set rosparm with rospkg
         # rosparam set /target_joint_positions '[q1, q2, q3, q4, q5, q6, q7]'
@@ -139,10 +178,9 @@ class FrankaServer(Node):
                 "ros2", "launch",
                 self.ros_pkg_name,
                 "reset.launch.py",
-                "robot_ip:=" + self.robot_ip,
-                f"load_gripper:={'true' if self.gripper_type == 'Franka' else 'false'}",
             ],
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         time.sleep(1)
         print("RUNNING JOINT RESET")
@@ -168,7 +206,7 @@ class FrankaServer(Node):
         self.joint_controller.terminate()
         time.sleep(1)
         self.clear()
-        print("KILLED JOINT RESET", self.pos)
+        print("KILLED JOINT RESET")
 
         # Restart impedece controller
         self.start_impedance()
@@ -178,8 +216,13 @@ class FrankaServer(Node):
         """Moves to a pose: [x, y, z, qx, qy, qz, qw]"""
         assert len(pose) == 7
         msg = Pose()
-        msg.position = geom_msg.Point(pose[0], pose[1], pose[2])
-        msg.orientation = geom_msg.Quaternion(pose[3], pose[4], pose[5], pose[6])
+        msg.position.x = pose[0]
+        msg.position.y = pose[1]
+        msg.position.z = pose[2]
+        msg.orientation.x = pose[3]
+        msg.orientation.y = pose[4]
+        msg.orientation.z = pose[5]
+        msg.orientation.w = pose[6]
         self.eepub.publish(msg)
 
     def open(self):
@@ -218,7 +261,7 @@ class FrankaServer(Node):
 
 
 def main(_):
-    rclpy.init(args=args)
+    rclpy.init()
 
 
     ROS_PKG_NAME = "franka_serl"
@@ -234,9 +277,14 @@ def main(_):
         gripper_type=GRIPPER_TYPE,
         ros_pkg_name=ROS_PKG_NAME,
     )
-    rclpy.spin(robot_server)
 
+    def ros_spin():
+        rclpy.spin(robot_server)
+
+    ros_thread = threading.Thread(target=ros_spin, daemon=True)
+    ros_thread.start()
     robot_server.start_impedance()
+    print("Server Started")
 
     # Route for Starting impedance
     @webapp.route("/startimp", methods=["POST"])

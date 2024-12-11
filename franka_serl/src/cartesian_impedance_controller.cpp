@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <franka_example_controllers/cartesian_impedance_controller.hpp>
+#include <franka_serl/cartesian_impedance_controller.hpp>
 
 #include <cassert>
 #include <cmath>
@@ -37,7 +37,7 @@ inline void pseudoInverse(const Eigen::MatrixXd& M_, Eigen::MatrixXd& M_pinv_, b
 }
 
 
-namespace franka_example_controllers {
+namespace franka_serl {
 
 controller_interface::InterfaceConfiguration
 CartesianImpedanceController::command_interface_configuration() const {
@@ -259,8 +259,8 @@ CallbackReturn CartesianImpedanceController::on_deactivate(
   return CallbackReturn::SUCCESS;
 }
 
-}  // namespace franka_example_controllers
+}  // namespace franka_serl
 #include "pluginlib/class_list_macros.hpp"
 // NOLINTNEXTLINE
-PLUGINLIB_EXPORT_CLASS(franka_example_controllers::CartesianImpedanceController,
+PLUGINLIB_EXPORT_CLASS(franka_serl::CartesianImpedanceController,
                        controller_interface::ControllerInterface)

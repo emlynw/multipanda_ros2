@@ -1,0 +1,14 @@
+<library path="franka_serl">
+    <class name="franka_serl/CartesianImpedanceController"
+           type="franka_serl::CartesianImpedanceController" base_class_type="controller_interface::ControllerInterface">
+        <description>
+            Ros 2 SERL impedance controller
+        </description>
+    </class>
+    <class name="franka_serl/MoveToStartController"
+           type="franka_serl::MoveToStartController" base_class_type="controller_interface::ControllerInterface">
+        <description>
+            The move to start controller moves the robot into default pose.
+        </description>
+    </class>
+</library>

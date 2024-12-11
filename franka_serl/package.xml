@@ -7,16 +7,38 @@
   <maintainer email="emlynw98@gmail.com">emlyn</maintainer>
   <license>TODO: License declaration</license>
 
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclpy</depend>
+  <depend>controller_interface</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>franka_msgs</depend>
+  <depend>franka_semantic_components</depend>
+
+  <test_depend>ament_cmake_clang_format</test_depend>
+  <test_depend>ament_cmake_copyright</test_depend>
+  <test_depend>ament_cmake_cppcheck</test_depend>
+  <test_depend>ament_cmake_flake8</test_depend>
+  <test_depend>ament_cmake_lint_cmake</test_depend>
+  <test_depend>ament_cmake_pep257</test_depend>
+  <test_depend>ament_cmake_xmllint</test_depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
   	
   <exec_depend>ros2launch</exec_depend>
-
-  <exec_depend>ros2launch</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>rclcpp_action</exec_depend>
+  <exec_depend>Eigen3</exec_depend>
 
   <export>
-    <build_type>ament_python</build_type>
+    <!-- <build_type>ament_python</build_type> -->
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

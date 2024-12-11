@@ -12,7 +12,10 @@ controller_manager:
       type: franka_example_controllers/CartesianImpedanceExampleController
     
     cartesian_impedance_controller:
-      type: franka_example_controllers/CartesianImpedanceController
+      type: franka_serl/CartesianImpedanceController
+
+    move_to_start_controller:
+      type: franka_serl/MoveToStartController
 
     joint_position_example_controller:
       type: franka_example_controllers/JointPositionExampleController
@@ -98,6 +101,25 @@ joint_impedance_example_controller:
       - 1.0
       - 0.5
 move_to_start_example_controller:
+  ros__parameters:
+    arm_id: panda
+    k_gains:
+      - 600.0
+      - 600.0
+      - 600.0
+      - 600.0
+      - 250.0
+      - 150.0
+      - 50.0
+    d_gains:
+      - 30.0
+      - 30.0
+      - 30.0
+      - 30.0
+      - 10.0
+      - 10.0
+      - 5.
+move_to_start_controller:
   ros__parameters:
     arm_id: panda
     k_gains:

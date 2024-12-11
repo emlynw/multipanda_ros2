@@ -21,7 +21,6 @@ from cv_bridge import CvBridge, CvBridgeError
 from franka_msgs.msg import FrankaState
 from franka_msgs.srv import ErrorRecovery
 import geometry_msgs.msg as geom_msg
-import threading
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -97,7 +96,6 @@ class FrankaServer(Node):
                 f"load_gripper:={'true' if self.gripper_type == 'Franka' else 'false'}",
             ],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
         )
         time.sleep(5)
 
@@ -107,53 +105,17 @@ class FrankaServer(Node):
         time.sleep(1)
 
     def clear(self):
-        """Clears any errors by polling the future until it's done"""
+        """Clears any errors"""
         if self.error_recovery_client.wait_for_service(timeout_sec=5.0):
-            # Create a request for ErrorRecovery
             request = ErrorRecovery.Request()
             future = self.error_recovery_client.call_async(request)
-
-            # Wait for the service call to complete
-            while not future.done():
-                rclpy.spin_once(self, timeout_sec=0.1)
-
-            # Check the response from the future
-            try:
-                response = future.result()
-                print(response)
-                if response is not None:
-                    # Log the success status of the error recovery
-                    if response.success:
-                        self.get_logger().info("Successfully cleared errors")
-                    else:
-                        # If the recovery failed, log the error message
-                        self.get_logger().error(f"Failed to clear errors: {response.error}")
-                else:
-                    self.get_logger().error("Failed to clear errors: No response received")
-            except Exception as e:
-                # Catch any exceptions that occurred while getting the response
-                self.get_logger().error(f"Service call failed with exception: {str(e)}")
+            rclpy.spin_until_future_complete(self, future)
+            if future.result() is not None:
+                self.get_logger().info("Successfully cleared errors")
+            else:
+                self.get_logger().error("Failed to clear errors")
         else:
             self.get_logger().error('Error recovery service not available')
-
-    # def clear(self):
-    #     """Clears any errors by polling the future until it's done"""
-    #     if self.error_recovery_client.wait_for_service(timeout_sec=5.0):
-    #         request = ErrorRecovery.Request()
-    #         future = self.error_recovery_client.call_async(request)
-    #         print(f"future: {future}")
-
-    #         # Wait for the service call to complete
-    #         while not future.done():
-    #             rclpy.spin_once(self, timeout_sec=0.1)
-
-    #         # Check the response
-    #         if future.result() is not None:
-    #             self.get_logger().info("Successfully cleared errors")
-    #         else:
-    #             self.get_logger().error("Failed to clear errors")
-    #     else:
-    #         self.get_logger().error('Error recovery service not available')
 
     def reset_joint(self):
         """Resets Joints (needed after running for hours)"""
@@ -165,8 +127,6 @@ class FrankaServer(Node):
             print("impedance Not Running")
         time.sleep(3)
         self.clear()
-
-        self.reset_joint_target = [0, -0.785, 0, -2.356, 0, 1.571, 0.785]
 
         # Launch joint controller reset
         # set rosparm with rospkg
@@ -183,7 +143,6 @@ class FrankaServer(Node):
                 f"load_gripper:={'true' if self.gripper_type == 'Franka' else 'false'}",
             ],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
         )
         time.sleep(1)
         print("RUNNING JOINT RESET")
@@ -209,7 +168,7 @@ class FrankaServer(Node):
         self.joint_controller.terminate()
         time.sleep(1)
         self.clear()
-        print("KILLED JOINT RESET")
+        print("KILLED JOINT RESET", self.pos)
 
         # Restart impedece controller
         self.start_impedance()
@@ -219,13 +178,8 @@ class FrankaServer(Node):
         """Moves to a pose: [x, y, z, qx, qy, qz, qw]"""
         assert len(pose) == 7
         msg = Pose()
-        msg.position.x = pose[0]
-        msg.position.y = pose[1]
-        msg.position.z = pose[2]
-        msg.orientation.x = pose[3]
-        msg.orientation.y = pose[4]
-        msg.orientation.z = pose[5]
-        msg.orientation.w = pose[6]
+        msg.position = geom_msg.Point(pose[0], pose[1], pose[2])
+        msg.orientation = geom_msg.Quaternion(pose[3], pose[4], pose[5], pose[6])
         self.eepub.publish(msg)
 
     def open(self):
@@ -264,7 +218,7 @@ class FrankaServer(Node):
 
 
 def main(_):
-    rclpy.init()
+    rclpy.init(args=args)
 
 
     ROS_PKG_NAME = "franka_serl"
@@ -280,14 +234,9 @@ def main(_):
         gripper_type=GRIPPER_TYPE,
         ros_pkg_name=ROS_PKG_NAME,
     )
+    rclpy.spin(robot_server)
 
-    def ros_spin():
-        rclpy.spin(robot_server)
-
-    ros_thread = threading.Thread(target=ros_spin, daemon=True)
-    ros_thread.start()
     robot_server.start_impedance()
-    print("Server Started")
 
     # Route for Starting impedance
     @webapp.route("/startimp", methods=["POST"])

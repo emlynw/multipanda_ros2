@@ -35,6 +35,8 @@ def generate_launch_description():
         output='screen'
     )
 
+    delayed_controller_manager = TimerAction(period=5.0, actions=[controller_manager])
+
     gripper = Node(
             package='franka_serl',
             executable='franka_gripper_server_node',
@@ -45,6 +47,6 @@ def generate_launch_description():
     return LaunchDescription([
         bringup,
         delayed_set_load,
-        controller_manager,
+        delayed_controller_manager,
         gripper,
    ])

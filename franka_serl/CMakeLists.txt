@@ -23,6 +23,7 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(franka_semantic_components REQUIRED)
 find_package(franka_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 # Add library (C++ Controllers)
@@ -42,6 +43,7 @@ ament_target_dependencies(${PROJECT_NAME}
   controller_interface
   pluginlib
   franka_msgs
+  sensor_msgs
   std_msgs
   std_srvs
   rclcpp_lifecycle
@@ -60,6 +62,7 @@ ament_target_dependencies(franka_gripper_server_node
   std_msgs
   std_srvs
   franka_msgs
+  sensor_msgs
 )
 
 # Install C++ Targets
@@ -95,6 +98,7 @@ ament_export_dependencies(
   controller_interface
   pluginlib
   franka_msgs
+  sensor_msgs
   std_msgs
   std_srvs
   Eigen3

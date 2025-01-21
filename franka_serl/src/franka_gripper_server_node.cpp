@@ -66,10 +66,8 @@ private:
 
     void _control_gripper(const std_msgs::msg::Float32::SharedPtr msg)
     {   
-        RCLCPP_INFO(this->get_logger(), "Current position: %.4f", current_position_);
-        RCLCPP_INFO(this->get_logger(), "Commanded position: %.4f", msg->data);
-        std::cout << "current_position_: " << current_position_ << std::endl;
-        std::cout << "msg->data: " << msg->data << std::endl;
+        // RCLCPP_INFO(this->get_logger(), "Current position: %.4f", current_position_);
+        // RCLCPP_INFO(this->get_logger(), "Commanded position: %.4f", msg->data);
         current_time_ = std::chrono::high_resolution_clock::now();
         if (current_time_ - prev_move_time_ > std::chrono::milliseconds(500))
         {

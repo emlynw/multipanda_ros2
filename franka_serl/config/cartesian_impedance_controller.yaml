@@ -1,0 +1,25 @@
+cartesian_impedance_controller:
+  ros__parameters:
+    translational_stiffness: 2000.0
+    translational_damping: 89.0
+    rotational_stiffness: 300.0
+    rotational_damping: 7.0
+    nullspace_stiffness: 1.0
+    nullspace_damping: 2.0
+    joint1_nullspace_stiffness: 100.0
+    filter_params: 0.001
+    translational_Ki: 0.0
+    rotational_Ki: 0.0
+    translational_clip_x: 0.01
+    translational_clip_neg_x: 0.01
+    translational_clip_y: 0.01
+    translational_clip_neg_y: 0.01
+    translational_clip_z: 0.01
+    translational_clip_neg_z: 0.01
+    rotational_clip_x: 0.03
+    rotational_clip_neg_x: 0.03
+    rotational_clip_y: 0.03
+    rotational_clip_neg_y: 0.03
+    rotational_clip_z: 0.03
+    rotational_clip_neg_z: 0.03
+    delta_tau_max_: 0.5

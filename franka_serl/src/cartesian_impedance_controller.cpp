@@ -21,6 +21,8 @@
 #include <franka/model.h>
 #include <franka_msgs/msg/franka_model.hpp>
 #include <geometry_msgs/msg/twist.hpp>
+#include <vector>
+#include <rclcpp/parameter.hpp>
 
 inline void pseudoInverse(const Eigen::MatrixXd& M_, Eigen::MatrixXd& M_pinv_, bool damped = true) {
     double lambda_ = damped ? 0.2 : 0.0;
@@ -73,10 +75,63 @@ CallbackReturn CartesianImpedanceController::on_init() {
 
 CallbackReturn CartesianImpedanceController::on_configure(
     const rclcpp_lifecycle::State& /*previous_state*/) {
-  arm_id_ = get_node()->get_parameter("arm_id").as_string();
+
+  auto node = get_node();
+  declare_parameters();
+
+  arm_id_ = node->get_parameter("arm_id").as_string();
   franka_robot_model_ = std::make_unique<franka_semantic_components::FrankaRobotModel>(
       franka_semantic_components::FrankaRobotModel(arm_id_ + "/robot_model",
                                                    arm_id_));
+
+
+  // Initialize parameter targets from YAML
+  cartesian_stiffness_target_.setIdentity();
+  cartesian_stiffness_target_.topLeftCorner(3, 3) = 
+      node->get_parameter("translational_stiffness").as_double() * Matrix3d::Identity();
+  cartesian_stiffness_target_.bottomRightCorner(3, 3) = 
+      node->get_parameter("rotational_stiffness").as_double() * Matrix3d::Identity();
+
+  cartesian_damping_target_.setIdentity();
+  cartesian_damping_target_.topLeftCorner(3, 3) = 
+      node->get_parameter("translational_damping").as_double() * Matrix3d::Identity();
+  cartesian_damping_target_.bottomRightCorner(3, 3) = 
+      node->get_parameter("rotational_damping").as_double() * Matrix3d::Identity();
+
+  nullspace_stiffness_target_ = node->get_parameter("nullspace_stiffness").as_double();
+  nullspace_damping_target_ = node->get_parameter("nullspace_damping").as_double();
+  joint1_nullspace_stiffness_target_ = node->get_parameter("joint1_nullspace_stiffness").as_double();
+  delta_tau_max_target_ = node->get_parameter("delta_tau_max_").as_double();
+
+  Ki_target_.setIdentity();
+  Ki_target_.topLeftCorner(3, 3) = 
+      node->get_parameter("translational_Ki").as_double() * Matrix3d::Identity();
+  Ki_target_.bottomRightCorner(3, 3) = 
+      node->get_parameter("rotational_Ki").as_double() * Matrix3d::Identity();
+
+  translational_clip_min_ = Vector3d(
+      -node->get_parameter("translational_clip_neg_x").as_double(),
+      -node->get_parameter("translational_clip_neg_y").as_double(),
+      -node->get_parameter("translational_clip_neg_z").as_double());
+  translational_clip_max_ = Vector3d(
+      node->get_parameter("translational_clip_x").as_double(),
+      node->get_parameter("translational_clip_y").as_double(),
+      node->get_parameter("translational_clip_z").as_double());
+  rotational_clip_min_ = Vector3d(
+      -node->get_parameter("rotational_clip_neg_x").as_double(),
+      -node->get_parameter("rotational_clip_neg_y").as_double(),
+      -node->get_parameter("rotational_clip_neg_z").as_double());
+  rotational_clip_max_ = Vector3d(
+      node->get_parameter("rotational_clip_x").as_double(),
+      node->get_parameter("rotational_clip_y").as_double(),
+      node->get_parameter("rotational_clip_z").as_double());
+
+  filter_params_ = node->get_parameter("filter_params").as_double();
+
+  // Set up parameter callback
+  params_callback_handle_ = node->add_on_set_parameters_callback(
+      std::bind(&CartesianImpedanceController::parametersCallback, this, std::placeholders::_1));
+
   pose_subscriber_ = this->get_node()->create_subscription<geometry_msgs::msg::Pose>(
     "/franka/goal_pose", 1, std::bind(&CartesianImpedanceController::equilibriumPoseCallback, this, std::placeholders::_1));
 
@@ -89,6 +144,76 @@ CallbackReturn CartesianImpedanceController::on_configure(
   return CallbackReturn::SUCCESS;
 }
 
+// Add parameter callback implementation
+rcl_interfaces::msg::SetParametersResult CartesianImpedanceController::parametersCallback(
+    const std::vector<rclcpp::Parameter>& parameters) {
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+  result.reason = "";
+
+  for (const auto& parameter : parameters) {
+    const std::string& name = parameter.get_name();
+    
+    if (name == "translational_stiffness") {
+      cartesian_stiffness_target_.topLeftCorner(3, 3) = 
+          parameter.as_double() * Matrix3d::Identity();
+    } else if (name == "rotational_stiffness") {
+      cartesian_stiffness_target_.bottomRightCorner(3, 3) = 
+          parameter.as_double() * Matrix3d::Identity();
+    } else if (name == "translational_damping") {
+      cartesian_damping_target_.topLeftCorner(3, 3) = 
+          parameter.as_double() * Matrix3d::Identity();
+    } else if (name == "rotational_damping") {
+      cartesian_damping_target_.bottomRightCorner(3, 3) = 
+          parameter.as_double() * Matrix3d::Identity();
+    } else if (name == "nullspace_stiffness") {
+      nullspace_stiffness_target_ = parameter.as_double();
+    } else if (name == "nullspace_damping") {
+      nullspace_damping_target_ = parameter.as_double();
+    } else if (name == "joint1_nullspace_stiffness") {
+      joint1_nullspace_stiffness_target_ = parameter.as_double();
+    } else if (name == "translational_Ki") {
+      Ki_target_.topLeftCorner(3, 3) = parameter.as_double() * Matrix3d::Identity();
+    } else if (name == "rotational_Ki") {
+      Ki_target_.bottomRightCorner(3, 3) = parameter.as_double() * Matrix3d::Identity();
+    } else if (name == "delta_tau_max_") {
+      delta_tau_max_target_ = parameter.as_double();
+    } else if (name == "filter_params") {
+      filter_params_ = parameter.as_double();
+    } else if (name == "translational_clip_x") {
+      translational_clip_max_.x() = parameter.as_double();
+    } else if (name == "translational_clip_neg_x") {
+      translational_clip_min_.x() = -parameter.as_double();
+    } else if (name == "translational_clip_y") {
+      translational_clip_max_.y() = parameter.as_double();
+    } else if (name == "translational_clip_neg_y") {
+      translational_clip_min_.y() = -parameter.as_double();
+    } else if (name == "translational_clip_z") {
+      translational_clip_max_.z() = parameter.as_double();
+    } else if (name == "translational_clip_neg_z") {
+      translational_clip_min_.z() = -parameter.as_double();
+    } else if (name == "rotational_clip_x") {
+      rotational_clip_max_.x() = parameter.as_double();
+    } else if (name == "rotational_clip_neg_x") {
+      rotational_clip_min_.x() = -parameter.as_double();
+    } else if (name == "rotational_clip_y") {
+      rotational_clip_max_.y() = parameter.as_double();
+    } else if (name == "rotational_clip_neg_y") {
+      rotational_clip_min_.y() = -parameter.as_double();
+    } else if (name == "rotational_clip_z") {
+      rotational_clip_max_.z() = parameter.as_double();
+    } else if (name == "rotational_clip_neg_z") {
+      rotational_clip_min_.z() = -parameter.as_double();
+    } else {
+      RCLCPP_WARN(get_node()->get_logger(), "Invalid parameter: %s", name.c_str());
+      result.successful = false;
+      result.reason = "Invalid parameter";
+    }
+  }
+
+  return result;
+}
+
 CallbackReturn CartesianImpedanceController::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   franka_robot_model_->assign_loaned_state_interfaces(state_interfaces_);
@@ -99,16 +224,16 @@ CallbackReturn CartesianImpedanceController::on_activate(
   orientation_d_.normalize();  // Normalize the desired orientation
   q_d_nullspace_ = Vector7d(franka_robot_model_->getRobotState()->q.data());
 
-  cartesian_stiffness_.setIdentity();
-  cartesian_stiffness_.topLeftCorner(3, 3) << translational_stiffness * Matrix3d::Identity();
-  cartesian_stiffness_.bottomRightCorner(3, 3) << rotational_stiffness * Matrix3d::Identity();
-  // Simple critical damping
-  cartesian_damping_.setIdentity();
-  cartesian_damping_.topLeftCorner(3,3) << translational_damping * Matrix3d::Identity();
-  cartesian_damping_.bottomRightCorner(3, 3) << rotational_damping * Matrix3d::Identity();
-  Ki_.setIdentity();
-  Ki_.topLeftCorner(3,3) << translational_Ki * Matrix3d::Identity();
-  Ki_.bottomRightCorner(3, 3) << rotational_Ki * Matrix3d::Identity();
+  // Initialize parameters to target values
+  cartesian_stiffness_ = cartesian_stiffness_target_;
+  cartesian_damping_ = cartesian_damping_target_;
+  nullspace_stiffness_ = nullspace_stiffness_target_;
+  nullspace_damping_ = nullspace_damping_target_;
+  joint1_nullspace_stiffness_ = joint1_nullspace_stiffness_target_;
+  Ki_ = Ki_target_;
+
+  update_counter_ = 0;
+  control_rate_divider_ = 1;
 
   return CallbackReturn::SUCCESS;
 }
@@ -116,6 +241,40 @@ CallbackReturn CartesianImpedanceController::on_activate(
 controller_interface::return_type CartesianImpedanceController::update(
     const rclcpp::Time& /*time*/,
     const rclcpp::Duration& /*period*/) {
+
+  // Only update if the counter matches the control rate
+  if (update_counter_ % control_rate_divider_ != 0) {
+    ++update_counter_;  // Increment the counter and skip this cycle
+    return controller_interface::return_type::OK;
+  }
+
+  // Reset counter after completing a cycle
+  ++update_counter_;
+  if (update_counter_ >= control_rate_divider_) {
+    update_counter_ = 0;
+  }
+
+  // Parameter filtering
+  cartesian_stiffness_ = filter_params_ * cartesian_stiffness_target_ + 
+                        (1.0 - filter_params_) * cartesian_stiffness_;
+  cartesian_damping_ = filter_params_ * cartesian_damping_target_ + 
+                      (1.0 - filter_params_) * cartesian_damping_;
+  nullspace_stiffness_ = filter_params_ * nullspace_stiffness_target_ + 
+                        (1.0 - filter_params_) * nullspace_stiffness_;
+  nullspace_damping_ = filter_params_ * nullspace_damping_target_ + 
+                        (1.0 - filter_params_) * nullspace_damping_;
+  joint1_nullspace_stiffness_ = filter_params_ * joint1_nullspace_stiffness_target_ + 
+                               (1.0 - filter_params_) * joint1_nullspace_stiffness_;
+  Ki_ = filter_params_ * Ki_target_ + (1.0 - filter_params_) * Ki_;
+  delta_tau_max_ = filter_params_ * delta_tau_max_target_ + (1.0 - filter_params_) * delta_tau_max_;
+
+  auto node = get_node();
+  //  Output params
+  // std::stringstream ss;
+  // ss << cartesian_stiffness_;
+  // RCLCPP_INFO(node->get_logger(), "cartesian stiffness: %s", ss.str().c_str());
+  // ss.str("");
+
   Eigen::Map<const Matrix4d> current(franka_robot_model_->getPoseMatrix(franka::Frame::kEndEffector).data());
   Eigen::Vector3d position(current.block<3,1>(0,3));
   Eigen::Quaterniond orientation(current.block<3,3>(0,0));
@@ -206,8 +365,11 @@ controller_interface::return_type CartesianImpedanceController::update(
 
   tau_nullspace << (Eigen::MatrixXd::Identity(7, 7) -
                       jacobian.transpose() * jacobian_transpose_pinv) *
-                         (nullspace_stiffness_ * qe -
-                          (2.0 * sqrt(nullspace_stiffness_)) * dqe);
+                         (nullspace_stiffness_ * qe - nullspace_damping_ * dqe);
+  // tau_nullspace << (Eigen::MatrixXd::Identity(7, 7) -
+  //                     jacobian.transpose() * jacobian_transpose_pinv) *
+  //                        (nullspace_stiffness_ * qe -
+  //                         (2.0 * sqrt(nullspace_stiffness_)) * dqe);
 
   tau_d <<  tau_task + coriolis + tau_nullspace;
 

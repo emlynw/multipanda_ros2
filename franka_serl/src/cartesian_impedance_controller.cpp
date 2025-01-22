@@ -66,6 +66,7 @@ CartesianImpedanceController::state_interface_configuration() const {
 CallbackReturn CartesianImpedanceController::on_init() {
   try {
     auto_declare<std::string>("arm_id", "panda");
+    declare_parameters();
   } catch (const std::exception& e) {
     fprintf(stderr, "Exception thrown during init stage with message: %s \n", e.what());
     return CallbackReturn::ERROR;
@@ -77,7 +78,6 @@ CallbackReturn CartesianImpedanceController::on_configure(
     const rclcpp_lifecycle::State& /*previous_state*/) {
 
   auto node = get_node();
-  declare_parameters();
 
   arm_id_ = node->get_parameter("arm_id").as_string();
   franka_robot_model_ = std::make_unique<franka_semantic_components::FrankaRobotModel>(

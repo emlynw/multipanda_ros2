@@ -78,7 +78,8 @@ controller_interface::return_type MoveToStartController::update(
 
 CallbackReturn MoveToStartController::on_init() {
   // q_goal_ << 0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4;
-  q_goal_ << 0.0, -1.15, -0.12, -2.98, -0.14, 3.35, 0.84;
+  // q_goal_ << 0.0, -1.15, -0.12, -2.98, -0.14, 3.35, 0.84;
+  q_goal_ << 0.0, -1.6, 0.0, -2.54, -0.05, 2.49, 0.822;
   try {
     auto_declare<std::string>("arm_id", "panda");
     auto_declare<std::vector<double>>("k_gains", {});

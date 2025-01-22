@@ -110,29 +110,34 @@ class CartesianImpedanceController : public controller_interface::ControllerInte
   // Replace the declare_parameters() function with:
   void declare_parameters() {
       auto node = get_node();
-      node->declare_parameter("translational_stiffness", 2000.0);
-      node->declare_parameter("rotational_stiffness", 200.0);
-      node->declare_parameter("translational_damping", 89.0);
-      node->declare_parameter("rotational_damping", 10.0);
-      node->declare_parameter("joint1_nullspace_stiffness", 80.0);
-      node->declare_parameter("nullspace_stiffness", 0.5);
-      node->declare_parameter("nullspace_damping", 2.0);
-      node->declare_parameter("filter_params", 0.001);
-      node->declare_parameter("translational_Ki", 0.0);
-      node->declare_parameter("rotational_Ki", 0.0);
-      node->declare_parameter("translational_clip_x", 0.01);
-      node->declare_parameter("translational_clip_neg_x", 0.01);
-      node->declare_parameter("translational_clip_y", 0.01);
-      node->declare_parameter("translational_clip_neg_y", 0.01);
-      node->declare_parameter("translational_clip_z", 0.01);
-      node->declare_parameter("translational_clip_neg_z", 0.01);
-      node->declare_parameter("rotational_clip_x", 0.03);
-      node->declare_parameter("rotational_clip_neg_x", 0.03);
-      node->declare_parameter("rotational_clip_y", 0.03);
-      node->declare_parameter("rotational_clip_neg_y", 0.03);
-      node->declare_parameter("rotational_clip_z", 0.03);
-      node->declare_parameter("rotational_clip_neg_z", 0.03);
-      node->declare_parameter("delta_tau_max_", 0.5);
+      const auto declare_if_not = [&node](const std::string& name, const auto& default_value) {
+        if (!node->has_parameter(name)) {
+            node->declare_parameter(name, default_value);
+        }
+      };
+      declare_if_not("translational_stiffness", 2000.0);
+      declare_if_not("rotational_stiffness", 200.0);
+      declare_if_not("translational_damping", 89.0);
+      declare_if_not("rotational_damping", 10.0);
+      declare_if_not("joint1_nullspace_stiffness", 80.0);
+      declare_if_not("nullspace_stiffness", 0.3);
+      declare_if_not("nullspace_damping", 1.5);
+      declare_if_not("filter_params", 0.001);
+      declare_if_not("translational_Ki", 0.0);
+      declare_if_not("rotational_Ki", 0.0);
+      declare_if_not("translational_clip_x", 0.01);
+      declare_if_not("translational_clip_neg_x", 0.01);
+      declare_if_not("translational_clip_y", 0.01);
+      declare_if_not("translational_clip_neg_y", 0.01);
+      declare_if_not("translational_clip_z", 0.01);
+      declare_if_not("translational_clip_neg_z", 0.01);
+      declare_if_not("rotational_clip_x", 0.03);
+      declare_if_not("rotational_clip_neg_x", 0.03);
+      declare_if_not("rotational_clip_y", 0.03);
+      declare_if_not("rotational_clip_neg_y", 0.03);
+      declare_if_not("rotational_clip_z", 0.03);
+      declare_if_not("rotational_clip_neg_z", 0.03);
+      declare_if_not("delta_tau_max_", 0.5);
   }
 };
 

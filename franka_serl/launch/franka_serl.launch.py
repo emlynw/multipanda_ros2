@@ -36,14 +36,32 @@ def generate_launch_description():
     delayed_set_load = TimerAction(period=4.0, actions=[set_load])
 
     controller_manager = Node(
-        package='controller_manager',
-        executable='spawner',
-        parameters=[config],
-        arguments=['cartesian_impedance_controller'],
-        output='screen'
+    package='controller_manager',
+    executable='spawner',
+    arguments=[
+        'cartesian_impedance_controller',
+        '--controller-manager', '/controller_manager',
+        '--param-file', config,
+        '--controller-manager-timeout', '50'  # Correct argument name
+    ],
+    output='screen'
     )
 
     delayed_controller_manager = TimerAction(period=8.0, actions=[controller_manager])
+
+    move_to_start_controller = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'move_to_start_controller',
+            '--controller-manager', '/controller_manager',
+            '--controller-manager-timeout', '50',
+            '--inactive'  # Ensure this controller starts in an inactive state
+        ],
+        output='screen'
+    )
+
+    delayed_move_to_start_controller = TimerAction(period=10.0, actions=[move_to_start_controller])
 
     gripper = Node(
             package='franka_serl',
@@ -56,5 +74,6 @@ def generate_launch_description():
         bringup,
         delayed_set_load,
         delayed_controller_manager,
+        delayed_move_to_start_controller,
         gripper,
    ])

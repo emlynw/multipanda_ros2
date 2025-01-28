@@ -3,7 +3,7 @@ cartesian_impedance_controller:
     translational_stiffness: 2000.0
     translational_damping: 89.0
     rotational_stiffness: 150.0
-    rotational_damping: 7.0
+    rotational_damping: 6.0
     nullspace_stiffness: 0.5
     nullspace_damping: 1.414
     joint1_nullspace_stiffness: 80.0

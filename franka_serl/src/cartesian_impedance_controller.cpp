@@ -138,8 +138,8 @@ CallbackReturn CartesianImpedanceController::on_configure(
   // Add publishers for Jacobian and Cartesian speed
   jacobian_publisher_ = this->get_node()->create_publisher<franka_msgs::msg::FrankaModel>("/franka/jacobian", 1);
   cartesian_speed_publisher_ = this->get_node()->create_publisher<geometry_msgs::msg::Twist>("/franka/cartesian_speed", 1);
-  joint_lower_limits_ << -2.75, -1.67, -2.75, -2.99, -2.75, -0.11, -2.75;
-  joint_upper_limits_ << 2.75, 1.67, 2.75, -0.15, 2.75, 3.66, 2.75;
+  joint_lower_limits_ << -2.75, -1.58, -2.75, -2.99, -2.75, -0.11, -2.75;
+  joint_upper_limits_ << 2.75, 1.58, 2.75, -0.15, 2.75, 3.66, 2.75;
         
   return CallbackReturn::SUCCESS;
 }

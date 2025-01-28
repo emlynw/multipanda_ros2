@@ -28,7 +28,7 @@ def generate_launch_description():
         cmd=[
             'ros2', 'service', 'call',
             '/panda_param_service_server/set_load', 'franka_msgs/srv/SetLoad',
-            '{mass: 0.216, center_of_mass: [0.0, 0.0, 0.1], load_inertia: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}'
+            '{mass: 0.23, center_of_mass: [0.0, 0.0, 0.1], load_inertia: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}'
         ],
         output='screen'
     )
